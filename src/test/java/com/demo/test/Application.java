@@ -1,25 +1,46 @@
 package com.demo.test;
 
-import java.io.IOException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeoutException;
 
+import com.demo.test.service.DBLockTestService;
+import com.distributed.exception.LockTimeOutException;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.context.annotation.ComponentScan;
 
-import com.distributed.lock.DBLockService;
-import com.distributed.lock.annotation.DistributedLockSupport;
-import com.distributed.lock.bean.LockBean;
+import com.distributed.annotation.EnableDistributedLock;
 
 
-@DistributedLockSupport
+@EnableDistributedLock
 @SpringBootApplication
 public class Application {
 
-	public static void main(String[] args) throws IOException {
+	static ExecutorService pool = Executors.newFixedThreadPool(2);
+
+
+	public static void main(String[] args) throws InterruptedException, ExecutionException, TimeoutException, LockTimeOutException {
 		ConfigurableApplicationContext context=SpringApplication.run(Application.class,args);
-		DBLockService service=context.getBean(DBLockService.class);
-		System.out.println(service.tryDistributedLock(new LockBean(1)));
+		DBLockTestService service = context.getBean(DBLockTestService.class);
+
+		for (int i = 0; i < 100; i++) {
+			pool.execute(new Runnable() {
+
+				@Override
+				public void run() {
+					System.out.println(service.sayHello("Bob"));
+				}
+			});
+		}
+		try {
+			Thread.sleep(2000000);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
+
 
 }
