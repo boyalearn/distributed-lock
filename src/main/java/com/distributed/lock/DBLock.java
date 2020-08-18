@@ -1,32 +1,24 @@
 package com.distributed.lock;
 
+import com.distributed.bean.LockBean;
 import com.distributed.dao.LockDao;
 import com.distributed.exception.LockTimeOutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.datasource.DataSourceUtils;
-
-import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 public class DBLock implements Lock {
 
     private Logger LOGGER = LoggerFactory.getLogger(this.getClass());
 
-    private static final ThreadPoolExecutor THREAD_POOL = new ThreadPoolExecutor(2, 3, 1, TimeUnit.MINUTES, new LinkedBlockingDeque<Runnable>(100), new ThreadPoolExecutor.AbortPolicy());
-
-    private ThreadLocal<Connection> connectThreadLocal = new ThreadLocal<Connection>();
+    private ThreadLocal<TransactionStatus> threadLocal = new ThreadLocal<>();
 
     @Autowired
-    private DataSource datasource;
+    private DataSourceTransactionManager txManager;
 
     @Autowired
     private LockDao lockDao;
@@ -34,54 +26,60 @@ public class DBLock implements Lock {
 
     @Override
     public boolean lock(String lockName, int timeOut) throws LockTimeOutException {
-        return exeLock("SELECT * FROM locktable WHERE lockName='" + lockName + "' for update");
-    }
+        LockBean lock;
+        Exception lockException = null;
+        try {
+            LockBean lockBean = initTx(lockName, timeOut);
 
+            lock = lockDao.lock(lockBean);
+            if (null != lock) {
+                return true;
+            }
+        } catch (Exception e) {
+            lockException = e;
+            throw new LockTimeOutException("get lock time out");
+        } finally {
+            if (null != lockException) {
+                txManager.rollback(threadLocal.get());
+            }
+        }
+        return false;
+    }
 
     @Override
     public void unLock(String lockName) {
-        Connection connection = connectThreadLocal.get();
-        try {
-            if (null != connection) {
-                connection.commit();
-                DataSourceUtils.releaseConnection(connection, datasource);
-            }
-        } catch (SQLException e) {
-            if (null != connection) {
-                DataSourceUtils.releaseConnection(connection, datasource);
-            }
-        }
-    }
-
-    private boolean exeLock(String sql) {
-        try {
-            Connection connection = DataSourceUtils.getConnection(datasource);
-            connectThreadLocal.set(connection);
-            connection.setAutoCommit(false);
-            PreparedStatement preparedStatement = connection.prepareStatement(sql);
-            ResultSet resultSet = preparedStatement.executeQuery();
-            if (null != resultSet) {
-                return true;
-            }
-            connection.rollback();
-            DataSourceUtils.releaseConnection(connection, datasource);
-            return false;
-        } catch (SQLException e) {
-            return false;
+        TransactionStatus status = threadLocal.get();
+        if (null != status) {
+            threadLocal.remove();
+            txManager.rollback(status);
         }
     }
 
     @Override
     public boolean tryLock(String lockName) {
-        try {
-            return exeLock("SELECT * FROM locktable WHERE lockName='" + lockName + "' for update nowait");
-        } catch (Exception e) {
-            Connection connection = connectThreadLocal.get();
-            if (null != connection) {
-                DataSourceUtils.releaseConnection(connection, datasource);
-            }
+        LockBean lockBean = initTx(lockName, 60000);
+        LockBean lock = lockDao.tryLock(lockBean);
+        if (null != lock) {
+            return true;
+        } else {
             return false;
         }
+
     }
 
+
+    private LockBean initTx(String lockName, Integer timeOut) {
+        //设置事务隔离级别相关属性
+        DefaultTransactionDefinition definition = new DefaultTransactionDefinition();
+        definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        //获取锁属性,如果业务方法参数没有LockBean对象，那么使用默认当前lockBean
+        LockBean lockBean = new LockBean(lockName, timeOut);
+        //数据库锁实现方式采用行锁。所以必须保证数据库中有这条数据来锁定.
+        //ensureLockExits(lockBean, definition);
+        LOGGER.debug("do logic");
+        definition.setTimeout(timeOut);
+        TransactionStatus status = txManager.getTransaction(definition);
+        threadLocal.set(status);
+        return lockBean;
+    }
 }
