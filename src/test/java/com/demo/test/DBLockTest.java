@@ -29,7 +29,7 @@ public class DBLockTest {
 
                 @Override
                 public void run() {
-                    System.out.println(dbLockTestService.sayHello("Bob"));
+                    dbLockTestService.sayHello("Bob");
                 }
             });
         }

@@ -22,9 +22,8 @@ public class DBLockTestService {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
-        Random ra = new Random();
-        int random = ra.nextInt(10);
         String result="Hello," + content + index;
+        System.out.println(result);
         ++index;
         return result;
 

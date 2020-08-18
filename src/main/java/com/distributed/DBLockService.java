@@ -13,7 +13,6 @@ public class DBLockService implements LockService {
 
     private Logger LOGGER = LoggerFactory.getLogger(this.getClass());
 
-
     @Autowired
     private Lock lock;
 

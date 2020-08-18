@@ -18,19 +18,19 @@ import com.distributed.annotation.EnableDistributedLock;
 @SpringBootApplication
 public class Application {
 
-	static ExecutorService pool = Executors.newFixedThreadPool(2);
+	static ExecutorService pool = Executors.newFixedThreadPool(4);
 
 
 	public static void main(String[] args) throws InterruptedException, ExecutionException, TimeoutException, LockTimeOutException {
 		ConfigurableApplicationContext context=SpringApplication.run(Application.class,args);
 		DBLockTestService service = context.getBean(DBLockTestService.class);
 
-		for (int i = 0; i < 100; i++) {
+		/*for (int i = 0; i < 100; i++) {
 			pool.execute(new Runnable() {
 
 				@Override
 				public void run() {
-					System.out.println(service.sayHello("Bob"));
+					service.sayHello("Bob");
 				}
 			});
 		}
@@ -39,6 +39,9 @@ public class Application {
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+		}*/
+		for(int i=0;i<100;i++){
+			new Thread(()->service.sayHello("Bob")).start();
 		}
 	}
 
