@@ -75,7 +75,6 @@ public class DBLock implements Lock {
         //获取锁属性,如果业务方法参数没有LockBean对象，那么使用默认当前lockBean
         LockBean lockBean = new LockBean(lockName, timeOut);
         //数据库锁实现方式采用行锁。所以必须保证数据库中有这条数据来锁定.
-        //ensureLockExits(lockBean, definition);
         LOGGER.debug("do logic");
         definition.setTimeout(timeOut);
         TransactionStatus status = txManager.getTransaction(definition);

@@ -22,7 +22,7 @@ public class DBLockTestService {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
-        String result="Hello," + content + index;
+        String result = "Hello," + content + index;
         System.out.println(result);
         ++index;
         return result;
